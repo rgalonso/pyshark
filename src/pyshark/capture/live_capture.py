@@ -19,7 +19,7 @@ class LiveCapture(Capture):
 
     def __init__(self, interface=None, bpf_filter=None, display_filter=None, only_summaries=False, decryption_key=None,
                  encryption_type='wpa-pwk', output_file=None, decode_as=None, disable_protocol=None, tshark_path=None,
-                 override_prefs=None, capture_filter=None, monitor_mode=None, use_json=False):
+                 override_prefs=None, capture_filter=None, monitor_mode=None, use_json=False, use_dumpcap=True):
         """
         Creates a new live capturer on a given interface. Does not start the actual capture itself.
 
@@ -48,6 +48,7 @@ class LiveCapture(Capture):
                                           capture_filter=capture_filter, use_json=use_json)
         self.bpf_filter = bpf_filter
         self.monitor_mode = monitor_mode
+        self.use_dumpcap = use_dumpcap
 
         if sys.platform == 'win32' and monitor_mode:
             raise WindowsError('Monitor mode is not supported by the Windows platform')
@@ -64,8 +65,11 @@ class LiveCapture(Capture):
         Returns the special tshark parameters to be used according to the configuration of this class.
         """
         params = super(LiveCapture, self).get_parameters(packet_count=packet_count)
-        # Read from STDIN
-        params += ['-r', '-']
+        if self.use_dumpcap:
+            # Read from STDIN
+            params += ['-r', '-']
+        else:
+            params += self._get_dumpcap_parameters()
         return params
 
     def _get_dumpcap_parameters(self):
@@ -85,10 +89,11 @@ class LiveCapture(Capture):
     def _get_tshark_process(self, packet_count=None, stdin=None):
         read, write = os.pipe()
 
-        dumpcap_params = [get_process_path(process_name="dumpcap", tshark_path=self.tshark_path)] + self._get_dumpcap_parameters()
-        dumpcap_process = yield From(asyncio.create_subprocess_exec(*dumpcap_params, stdout=write,
-                                                                    stderr=self._stderr_output()))
-        self._created_new_process(dumpcap_params, dumpcap_process, process_name="Dumpcap")
+        if self.use_dumpcap:
+            dumpcap_params = [get_process_path(process_name="dumpcap", tshark_path=self.tshark_path)] + self._get_dumpcap_parameters()
+            dumpcap_process = yield From(asyncio.create_subprocess_exec(*dumpcap_params, stdout=write,
+                                                                        stderr=self._stderr_output()))
+            self._created_new_process(dumpcap_params, dumpcap_process, process_name="Dumpcap")
 
         tshark = yield From(
             super(LiveCapture, self)._get_tshark_process(packet_count=packet_count, stdin=read))
