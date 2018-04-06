@@ -382,7 +382,7 @@ class Capture(object):
         raise Return(tshark_process)
 
     def _created_new_process(self, parameters, process, process_name="TShark"):
-        self._log.debug('%s subprocess created', process_name)
+        self._log.debug('%s subprocess created' % process_name)
         if process.returncode is not None and process.returncode != 0:
             raise TSharkCrashException(
                 '%s seems to have crashed. Try updating it. (command ran: "%s")' % (
